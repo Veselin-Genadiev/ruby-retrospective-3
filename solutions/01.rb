@@ -32,36 +32,25 @@ end
 
 class Array
   def frequencies
-    frequencies_hash = {}
-    self.each{|x| frequencies_hash[x] ?
-        frequencies_hash[x] += 1 : frequencies_hash[x] = 1}
-    frequencies_hash
+    frequencies_collection = {}
+    self.each{|x| frequencies_collection[x] ?
+        frequencies_collection[x] += 1 : frequencies_collection[x] = 1}
+    frequencies_collection
   end
 
   def average
-    sum = 0.0
-    self.each{|x| sum += x}
-    avg = sum / self.length
+    reduce(:+).to_f / length unless length.zero?
   end
 
   def drop_every(n)
-    nth_dropped_list = []
-    counter = 0
-    while counter < self.length
-      nth_dropped_list.push(self[counter]) unless (counter + 1) % n == 0
-      counter += 1
-    end
-    nth_dropped_list
+    find_all.each_with_index { |element, index| index % n != n - 1 }
   end
 
   def combine_with(other)
-    list = []
-    bigger = [self, other].max{|x, y| x.length <=> y.length}
-    (0..[self.length, other.length].min - 1).
-        each{|i| list.push(self[i], other[i])}
-    (list.length / 2..bigger.length - 1).each{|i| list.push(bigger[i])}
-    list
+    min_length = [length, other.length].min
+    first_part = take(min_length).zip(other.take(min_length)).flatten
+    remainder  = drop(min_length) + other.drop(min_length)
+
+    first_part + remainder
   end
 end
-
-puts 110.digits

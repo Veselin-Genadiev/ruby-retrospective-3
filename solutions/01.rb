@@ -5,22 +5,18 @@ class Integer
   end
 
   def prime_factors
-    list = []
-    argument = self
-    while argument.abs > 1
-      list.push((2..argument).select{|x| (x.prime? && argument % x == 0)}.first)
-      argument /= list.last
+    number = self
+    2.upto(abs).each_with_object([]) do |divisor, prime_factors|
+      while number % divisor == 0
+        prime_factors << divisor
+        number /= divisor
+      end
     end
-    list
   end
 
   def harmonic
     harmonic_number = Rational(0, 1)
-    counter = 1
-    while counter <= self
-      harmonic_number += Rational(1, counter)
-      counter += 1
-    end
+    1.upto(self).each { |number| harmonic_number += Rational(1, number) }
     harmonic_number
   end
 
@@ -68,3 +64,5 @@ class Array
     list
   end
 end
+
+puts

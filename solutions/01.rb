@@ -22,10 +22,9 @@ class Integer
 
   def digits
     digits_list = []
-    number_positive = self.abs
-    while number_positive > 0
-      digits_list.push(number_positive % 10)
-      number_positive /= 10
+    number = self.abs
+    1.upto(Math.log10(number) + 1).each do |power|
+      digits_list << number % 10 ** power / 10 ** (power - 1)
     end
     digits_list.reverse
   end
@@ -65,4 +64,4 @@ class Array
   end
 end
 
-puts
+puts 110.digits

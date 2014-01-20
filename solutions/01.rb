@@ -1,12 +1,7 @@
 class Integer
   def prime?
-    true if self == 2
-    counter = 2
-    while counter <= Math.sqrt(self)
-      false if self % counter == 0
-      counter += 1
-    end
-    true
+    return false if self < 2
+    2.upto(self - 1).all? { |number| self % number != 0 }
   end
 
   def prime_factors

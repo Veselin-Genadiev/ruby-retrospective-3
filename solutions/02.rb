@@ -1,26 +1,11 @@
-class Todo
-  attr_reader :status
-  attr_reader :description
-  attr_reader :priority
-  attr_reader :tags
+class Task
+  attr_reader :status, :description, :priority, :tags
 
   def initialize arguments
     @status = arguments[0].strip.downcase.to_sym
     @description = arguments[1].strip
     @priority = arguments[2].strip.downcase.to_sym
     @tags = arguments[3].nil? ? %w[] : arguments[3].split(%r{\s*\,\s*})
-  end
-
-  def contains_all_tags? tag_list
-    tag_list.all?{|tag| @tags.include?(tag)}
-  end
-
-  def equals_status? status
-    @status == status
-  end
-
-  def equals_priority? priority
-    @priority == priority
   end
 end
 

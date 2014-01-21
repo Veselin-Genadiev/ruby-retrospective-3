@@ -21,12 +21,7 @@ class Integer
   end
 
   def digits
-    digits_list = []
-    number = self.abs
-    1.upto(Math.log10(number) + 1).each do |power|
-      digits_list << number % 10 ** power / 10 ** (power - 1)
-    end
-    digits_list.reverse
+    abs.to_s.chars.map(&:to_i)
   end
 end
 
@@ -47,10 +42,11 @@ class Array
   end
 
   def combine_with(other)
-    min_length = [length, other.length].min
-    first_part = take(min_length).zip(other.take(min_length)).flatten
-    remainder  = drop(min_length) + other.drop(min_length)
+    longer, shorter = self.length > other.length ? [self, other] : [other, self]
 
-    first_part + remainder
+    combined = take(shorter.length).zip(other.take(shorter.length)).flatten(1)
+    rest     = longer.drop(shorter.length)
+
+    combined + rest
   end
 end

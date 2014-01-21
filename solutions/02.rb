@@ -5,89 +5,85 @@ class Task
     @status = arguments[0].strip.downcase.to_sym
     @description = arguments[1].strip
     @priority = arguments[2].strip.downcase.to_sym
-    @tags = arguments[3].nil? ? %w[] : arguments[3].split(%r{\s*\,\s*})
+    @tags = arguments[3] ? arguments[3].split(',').each(&:strip!) : []
+  end
+
+  def self.create_task line
+    Task.new line.split('|')
   end
 end
 
 class Criteria
-  attr_reader :criterias
+  attr_accessor :block
 
-  def initialize criterias
-    @criterias = criterias
+  def initialize(&block)
+    @block = block
   end
 
-  def self.status status
-    Criteria.new lambda{ |todo| todo.equals_status?(status) }
+  def self.status(status)
+    Criteria.new { |task| task.status.equal? status }
   end
 
-  def self.priority priority
-    Criteria.new lambda { |todo| todo.equals_priority?(priority) }
+  def self.priority(priority)
+    Criteria.new { |task| task.priority.equal? priority }
   end
 
-  def self.tags tag_list
-    Criteria.new lambda { |todo| todo.contains_all_tags?(tag_list) }
+  def self.tags(tags)
+    Criteria.new { |task| (tags & task.tags).size.equal? tags.size }
   end
 
   def &(other)
-    intnersect_criterias = lambda do |todo|
-      criterias.call(todo) && other.criterias.call(todo)
-    end
-    Criteria.new intnersect_criterias
+    Criteria.new { |task| block.call(task) && other.block.call(task) }
   end
 
   def |(other)
-    union_criterias = lambda do |todo|
-      criterias.call(todo) || other.criterias.call(todo)
-    end
-    Criteria.new union_criterias
+    Criteria.new { |task| block.call(task) || other.block.call(task) }
   end
 
   def !
-    Criteria.new lambda { |todo| !criterias.call(todo) }
+    Criteria.new { |task| !block.call(task) }
   end
 end
 
 class TodoList
   include Enumerable
-  attr_reader :todo_list
 
-  def initialize(list)
-    @todo_list = list
+  attr_accessor :tasks
+
+  def initialize(tasks)
+    @tasks = tasks
   end
 
-  def self.parse text
-    todo = TodoList.new []
-    text.each_line(separator=$/) do |line|
-      todo.todo_list << Todo.new(line.split(%r{\s*\|\s*}))
-    end
-    todo
-  end
-
-  def each(&block)
-    @todo_list.each(&block)
-  end
-
-  def filter(criteria)
-    TodoList.new select(&criteria.criterias)
-  end
-
-  def adjoin(other)
-    TodoList.new(@todo_list | other.todo_list)
-  end
-
-  def tasks_todo
-    @todo_list.count{|task| task.status == :todo}
-  end
-
-  def tasks_in_progress
-    @todo_list.count{|task| task.status == :current}
-  end
-
-  def tasks_completed
-    @todo_list.count{|task| task.status == :done}
+  def self.parse(text)
+    tasks = text.lines.map { |line| Task.create_task(line) }
+    TodoList.new(tasks)
   end
 
   def completed?
-    tasks_completed == self.length
+    tasks.all? { |task| task.status.equal? :done }
+  end
+
+  def tasks_todo
+    tasks.select { |task| task.status.equal? :todo }.size
+  end
+
+  def tasks_in_progress
+    tasks.select { |task| task.status.equal? :current }.size
+  end
+
+  def tasks_completed
+    tasks.select { |task| task.status.equal? :done }.size
+  end
+
+  def filter(criteria)
+    TodoList.new(tasks.select(&criteria.block))
+  end
+
+  def adjoin(other)
+    TodoList.new(tasks | other.tasks)
+  end
+
+  def each
+    tasks.each { |task| yield(task) }
   end
 end

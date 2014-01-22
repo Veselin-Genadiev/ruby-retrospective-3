@@ -1,147 +1,113 @@
 module Asm
-  def self.asm(&block)
-    memory = Memory.new
-    memory.read(&block)
-  end
-
-  class BasicOperations
-    def initialize memory
-      @memory = memory
-    end
-
-    def cmp register, value
-      @memory.last_compare = @memory.registers[register] <=> get_value(value)
-      nil
-    end
-
-    def dec destination_register, value
-      @memory.registers[destination_register] -= get_value(value)
-      nil
-    end
-
-    def inc destination_register, value
-      @memory.registers[destination_register] += get_value(value)
-      nil
-    end
-
-    def mov destination_register, source
-      @memory.registers[destination_register] = get_value(source)
-      nil
-    end
-
-    private
-
-    def get_value source
-      if source.is_a?(Symbol)
-        @memory.registers[source]
-      else
-        source
+  module Instructions
+    class Mov < Struct.new :destination, :source
+      def execute(cpu)
+        cpu.registers[destination] = cpu.get_value source
       end
     end
+
+    class Inc < Struct.new :destination, :value
+      def execute(cpu)
+        cpu.registers[destination] += value.nil? ? 1 : cpu.get_value(value)
+      end
+    end
+
+    class Dec < Struct.new :destination, :value
+      def execute(cpu)
+        cpu.registers[destination] -= value.nil? ? 1 : cpu.get_value(value)
+      end
+    end
+
+    class Cmp < Struct.new :register, :value
+      def execute(cpu)
+        cpu.cmp_result = cpu.registers[register] <=> cpu.get_value(value)
+      end
+    end
+
+    class Jmp < Struct.new :where
+      def execute(cpu)
+        cpu.jump_to where
+      end
+    end
+
+    CONDITIONAL_JUMPS = {
+        je:  :==,
+        jne: :'!=',
+        jl:  :<,
+        jle: :<=,
+        jg:  :>,
+        jge: :>=,
+    }.freeze
+
+    def self.define_jump_instruction(instruction_name, comparator)
+      jump_class = Struct.new :where do
+        define_method :execute do |cpu|
+          cpu.jump_to where if cpu.cmp_result.public_send comparator, 0
+        end
+      end
+
+      const_set instruction_name.capitalize, jump_class
+    end
+
+    CONDITIONAL_JUMPS.each do |class_name, comparator|
+      define_jump_instruction(class_name, comparator)
+    end
   end
 
-  class JumpOperations
-    def initialize memory
-      @memory = memory
-    end
+  class CPU
+    attr_reader   :registers, :labels
+    attr_accessor :instructions, :cmp_result
 
-    def jmp where
-      @memory.labels[where]
-    end
-
-    def je where
-      return @memory.labels[where] if @memory.last_compare == 0
-      nil
-    end
-
-    def jne where
-      return @memory.labels[where] if @memory.last_compare != 0
-      nil
-    end
-
-    def jl where
-      return @memory.labels[where] if @memory.last_compare < 0
-      nil
-    end
-
-    def jle where
-      return @memory.labels[where] if @memory.last_compare <= 0
-      nil
-    end
-
-    def jg where
-      return @memory.labels[where] if @memory.last_compare > 0
-      nil
-    end
-
-    def jge where
-      return @memory.labels[where] if @memory.last_compare >= 0
-      nil
-    end
-  end
-
-  class Memory
-    attr_accessor :registers, :instructions, :labels, :last_compare
-
-    BASIC_OPERATIONS = ["mov", "inc", "dec", "cmp"]
-    JUMP_OPERATIONS = ["jmp", "je", "jne", "jl", "jle", "jg", "jge"]
-
-    def initialize
-      @registers = { ax: 0, bx: 0, cx: 0, dx: 0 }
-      @instructions = []
-      @labels = {}
-      @last_compare = 0
-      @basic_operations = Asm::BasicOperations.new self
-      @jump_operations = Asm::JumpOperations.new self
+    def initialize(registers)
+      @registers           = Hash[registers.map { |name| [name.to_sym, 0] }]
+      @labels              = {}
+      @instructions        = []
+      @instruction_pointer = 0
     end
 
     def method_missing(name, *args)
-      if BASIC_OPERATIONS.include?(name.to_s) || JUMP_OPERATIONS.include?(name.to_s)
-        @instructions << [name.to_s, args]
-      elsif name.to_s == "label"
-        @labels[args.first] = @instructions.length
+      if Instructions.const_defined?(name.capitalize)
+        instructions.push Instructions.const_get(name.capitalize).new *args
       else
         name
       end
     end
 
-    def respond_to?(method_name, include_private = false)
-      BASIC_OPERATIONS.include?(method_name) || JUMP_OPERATIONS.include?(method_name)
+    def get_value(value_or_register)
+      if value_or_register.is_a? Symbol
+        registers[value_or_register]
+      else
+        value_or_register
+      end
     end
 
-    def load(&block)
-      self.instance_exec(&block)
+    def jump_to(value_or_label)
+      if value_or_label.is_a? Symbol
+        @instruction_pointer = labels[value_or_label] - 1
+      else
+        @instruction_pointer = value_or_label - 1
+      end
+    end
+
+    def label(name)
+      labels[name] = instructions.size
     end
 
     def run
-      instruction_index = 0
-      until(instruction_index == @instructions.length)
-        instruction = @instructions[instruction_index]
-        operation_result = execute_operation(instruction[0], *instruction[1])
-        if operation_result
-          instruction_index = operation_result
-        else
-          instruction_index += 1
-        end
+      while @instruction_pointer.between?(0, instructions.size - 1)
+        instructions[@instruction_pointer].execute self
+        @instruction_pointer += 1
       end
-    end
 
-    def read(&block)
-      load(&block)
-      run
-      @registers.values
-    end
-
-    private
-
-    def execute_operation operation, *args
-      if BASIC_OPERATIONS.include?(operation)
-        @basic_operations.send(operation, *args)
-      elsif JUMP_OPERATIONS.include?(operation)
-        @jump_operations.send(operation, *args)
-      else
-        ::Kernel.raise "Unknown operation!"
-      end
+      registers.values
     end
   end
+
+  def self.asm(&block)
+    cpu = CPU.new %w(ax bx cx dx)
+    cpu.instance_eval(&block)
+
+    cpu.run
+  end
+
 end
